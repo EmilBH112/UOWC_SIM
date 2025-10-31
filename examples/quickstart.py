@@ -1,6 +1,6 @@
 # examples/quickstart.py
-from uowc.media import PURE_SEA, CLEAR_COASTAL, TURBID_HARBOR
-from uowc.link import Transmitter, Receiver, Channel
+from UOWC.media import PURE_SEA, CLEAR_COASTAL, TURBID_HARBOR
+from UOWC.link import Transmitter, Receiver, Channel
 import numpy as np
 
 # --- Define system ---
@@ -19,5 +19,5 @@ print(f"Turbulent mean: {samples.mean()*1e9:.2f} nW, scintillation (σ/I): {samp
 
 # --- Crude SNR/BER (IM/DD AWGN placeholder) ---
 snr = ch.snr_imdd_awgn(pr_w=samples.mean(), noise_psd_a2_hz=5e-24, responsivity_a_w=0.2, bandwidth_hz=1e5)
-from uowc.modulation import ber_ook_awgn
+from UOWC.modulation import ber_ook_awgn
 print(f"SNR (linear): {snr:.2f}, BER_OOK≈ {ber_ook_awgn(snr):.3e}")
