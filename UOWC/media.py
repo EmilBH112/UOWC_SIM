@@ -1,3 +1,10 @@
+"""
+Water media presets at ~520 nm.
+
+Each preset provides absorption (alpha), scattering (beta), and total attenuation
+(c = alpha + beta) in m^-1 as commonly used with Beer–Lambert I(d)=I0·exp(-c·d).
+You can extend this with wavelength-dependent tables or functions.
+"""
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
