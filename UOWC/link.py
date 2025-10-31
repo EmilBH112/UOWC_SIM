@@ -1,97 +1,124 @@
-# uowc/link.py
-from __future__ import annotations
 from dataclasses import dataclass
-import math
 import numpy as np
-from typing import Literal, Optional
-from .media import WaterMedium
+from .media import WaterType
 
-TurbulenceModel = Literal["lognormal", "gen-gamma", "weibull"]
-
-@dataclass
-class Transmitter:
-    power_w: float             # optical power at source [W]
-    tx_optical_eff: float = 1.0  # optics efficiency (0..1)
-    divergence_half_angle_rad: float = math.radians(5)  # not used yet in LOS
+q = 1.602e-19
+kB = 1.380649e-23
 
 @dataclass
-class Receiver:
-    aperture_area_m2: float    # physical area [m^2]
-    rx_optical_eff: float = 1.0  # optics/filter efficiency (0..1)
-    fov_half_angle_rad: float = math.radians(10)        # placeholder
+class Tx:
+    Pt_w: float
+    eta_t: float = 0.9
+    semi_angle_deg: float = 60
+    is_laser: bool = False
+    theta_div_deg: float = 9.0
+    m_lambert: float = None
+    def lambert_m(self) -> float:
+        if self.is_laser:
+            return 1.0
+        if self.m_lambert is not None:
+            return self.m_lambert
+        th = np.deg2rad(self.semi_angle_deg)
+        return -np.log(2.0)/np.log(np.cos(th))
 
 @dataclass
-class Channel:
-    wavelength_nm: float
-    medium: WaterMedium
-    turbulence: TurbulenceModel = "lognormal"
-    sigma_ln: float = 0.2
-    """
-    sigma_ln: log-amplitude std dev for log-normal fading (weak-to-mod turbulence).
-    You can later switch to generalized-gamma / Weibull with their params as in Zayed & Shokair.
-    """
+class Rx:
+    R_A_per_W: float
+    A_pd_m2: float
+    eta_r: float = 0.9
+    T: float = 300.0
+    R_load: float = 50.0
 
-    def los_power(self, tx: Transmitter, rx: Receiver, distance_m: float) -> float:
-        """
-        Simple LOS received power:
-            P_r_LOS = P_t * η_tx * η_rx * (A_r / (4π d^2)) * exp(-c d)
-        where c = a + b. Matches common UOWC LOS modeling used in Scientific Reports work. 
-        """
-        spreading = rx.aperture_area_m2 / (4.0 * math.pi * distance_m**2)
-        beer_lambert = math.exp(-self.medium.c * distance_m)
-        return tx.power_w * tx.tx_optical_eff * rx.rx_optical_eff * spreading * beer_lambert
+@dataclass
+class Geometry:
+    distance_m: float
+    theta_tx_deg: float
+    phi_incident_deg: float
+    fov_deg: float
+    G_tx_optics: float = 1.0
+    n_concentrator: float = 1.5
+    def rx_concentrator_gain(self) -> float:
+        phi = np.deg2rad(self.fov_deg)
+        return (self.n_concentrator**2) * (np.sin(phi)**2)
+    def fov_window(self, phi_incident_deg: float) -> float:
+        return 1.0 if abs(phi_incident_deg) <= self.fov_deg else 0.0
 
-    # ---- Turbulence fading samples (intensity multiplier) ----
-    def fading_samples(self, n: int) -> np.ndarray:
-        """
-        Draw i.i.d. samples of turbulence-induced intensity fading.
-        Start with log-normal for weak/moderate regimes; add others later.
-        References discuss log-normal (weak), generalized-gamma, Weibull (moderate/strong). 
-        """
-        if self.turbulence == "lognormal":
-            # Intensity I = I0 * exp(X), X ~ N(-σ^2/2, σ^2) to keep E[I]=I0
-            mu = -0.5 * self.sigma_ln**2
-            return np.exp(np.random.normal(mu, self.sigma_ln, size=n))
-        elif self.turbulence == "weibull":
-            # Placeholder Weibull(k, λ) with mean 1 (normalize)
-            k, lam = 1.5, 1.0
-            samp = np.random.weibull(k, size=n) * lam
-            return samp / np.mean(samp)
-        elif self.turbulence == "gen-gamma":
-            # Placeholder generalized-gamma; normalize to mean 1
-            # shape a,k and scale d — tune from literature once you pick regime.
-            a, d, p = 2.0, 1.0, 1.0
-            x = np.random.gamma(shape=a, scale=d, size=n)**(1.0/p)
-            return x / np.mean(x)
-        else:
-            raise ValueError("Unknown turbulence model")
+@dataclass
+class Turbulence:
+    model_name: str = 'lognormal'
+    scint_index: float = 0.0
+    gg_alpha: float = 1.0
+    gg_beta: float = 1.0
+    weibull_k: float = 1.0
+    weibull_lambda: float = 1.0
+    @staticmethod
+    def model(name: str, **kwargs):
+        return Turbulence(model_name=name, **kwargs)
+    def fading_gain(self, size=1):
+        if self.scint_index <= 0:
+            return np.ones(size)
+        if self.model_name.lower() == 'lognormal':
+            sigmaX2 = np.log(1.0 + self.scint_index)
+            mu = -0.5*sigmaX2
+            return np.exp(np.random.normal(mu, np.sqrt(sigmaX2), size=size))
+        if self.model_name.lower() in ('gen-gamma','generalized-gamma'):
+            g = np.random.gamma(shape=self.gg_beta, scale=self.gg_alpha, size=size)
+            return g/np.mean(g)
+        if self.model_name.lower() == 'weibull':
+            g = np.random.weibull(a=self.weibull_k, size=size) * self.weibull_lambda
+            return g/np.mean(g)
+        return np.ones(size)
 
-    def received_power_samples(self, tx: Transmitter, rx: Receiver, distance_m: float, n: int = 10000) -> np.ndarray:
-        """
-        Monte-Carlo of received power with multiplicative turbulence.
-        """
-        pr_los = self.los_power(tx, rx, distance_m)
-        fade = self.fading_samples(n)
-        return pr_los * fade
-
-    # ---- SNR/BER (1st-order placeholders) ----
-    def snr_imdd_awgn(self, pr_w: float, noise_psd_a2_hz: float = 1e-24, responsivity_a_w: float = 0.2, bandwidth_hz: float = 1e5) -> float:
-        """
-        Very simple IM/DD SNR estimate:
-            signal current ~ R * P_r
-            noise current variance ~ N0 * B   (placeholder single-sided PSD)
-        Extend with shot noise, thermal noise, APD gain/excess noise later.
-        """
-        i_sig = responsivity_a_w * pr_w
-        var = noise_psd_a2_hz * bandwidth_hz
-        return (i_sig**2) / (var + 1e-30)
-
-    def ber_ook_awgn(self, snr_linear: float) -> float:
-        """
-        OOK with optimal threshold in AWGN (equal priors):
-            BER ≈ Q( sqrt(SNR) )
-        """
-        from math import erfc, sqrt
-        return 0.5 * erfc( math.sqrt(snr_linear)/math.sqrt(2.0) )
-
-    
+class Link:
+    def __init__(self, water: WaterType, tx: Tx, rx: Rx, geom: Geometry, turb: Turbulence):
+        self.water = water
+        self.tx = tx
+        self.rx = rx
+        self.geom = geom
+        self.turb = turb
+    def _geom_gain_led(self) -> float:
+        m = self.tx.lambert_m()
+        theta = np.deg2rad(self.geom.theta_tx_deg)
+        G_tx = self.geom.G_tx_optics
+        G_rx = self.geom.rx_concentrator_gain()
+        phi = self.geom.phi_incident_deg
+        Pi = self.geom.fov_window(phi)
+        d = self.geom.distance_m
+        denom = 2*np.pi*d*d*(1 - np.cos(theta) + 1e-12)
+        num = ((m+1)/(2*np.pi)) * (np.cos(theta)**m) * G_tx * G_rx * self.rx.A_pd_m2 * np.cos(np.deg2rad(phi))
+        return Pi * max(num/denom, 0.0)
+    def _geom_gain_ld(self) -> float:
+        theta = np.deg2rad(max(self.tx.theta_div_deg, 0.5))
+        G_tx = self.geom.G_tx_optics
+        G_rx = self.geom.rx_concentrator_gain()
+        phi = self.geom.phi_incident_deg
+        Pi = self.geom.fov_window(phi)
+        d = self.geom.distance_m
+        denom = np.pi * d*d * (np.tan(theta)**2 + 1e-12)
+        num = G_tx * G_rx * self.rx.A_pd_m2 * np.cos(np.deg2rad(phi))
+        return Pi * max(num/denom, 0.0)
+    def received_power_W(self, stochastic: bool=False) -> float:
+        Pt = self.tx.Pt_w * self.tx.eta_t
+        c = self.water.c_m1
+        atten = np.exp(-c * self.geom.distance_m)
+        G = self._geom_gain_ld() if self.tx.is_laser else self._geom_gain_led()
+        turb = 1.0
+        if stochastic and self.turb.scint_index > 0:
+            turb = float(self.turb.fading_gain(size=1)[0])
+        return Pt * atten * G * self.rx.eta_r * turb
+    def noise_variances(self, Pr_W: float, bandwidth_Hz: float, rin: float|None, Idark_A: float) -> dict:
+        R = self.rx.R_A_per_W
+        B = bandwidth_Hz
+        shot = 2*q*R*Pr_W*B
+        thermal = 4*kB*self.rx.T*B / max(self.rx.R_load, 1e-3)
+        dark = 2*q*Idark_A*B if Idark_A and Idark_A>0 else 0.0
+        rin_var = (R*Pr_W)**2 * B * rin if rin is not None else 0.0
+        return dict(shot=shot, thermal=thermal, dark=dark, rin=rin_var)
+    def snr_db(self, bandwidth_Hz: float, rin: float|None=None, Idark_A: float=0.0) -> float:
+        Pr = self.received_power_W()
+        R = self.rx.R_A_per_W
+        sig = (R*Pr)**2
+        nv = self.noise_variances(Pr, bandwidth_Hz, rin, Idark_A)
+        sigma2 = sum(nv.values())
+        snr = sig / max(sigma2, 1e-30)
+        return 10*np.log10(snr + 1e-30)

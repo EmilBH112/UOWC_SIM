@@ -1,31 +1,24 @@
-# uowc/media.py                             # This is just an a,b,c holder for now waiting for formulas
 from dataclasses import dataclass
-from typing import Optional
 
 @dataclass(frozen=True)
-class WaterMedium:
-    """
-    Inherent optical properties for a single wavelength (scalar model).
-    a: absorption [m^-1]
-    b: scattering [m^-1]
-    c: attenuation = a + b [m^-1]  (Beer–Lambert LOS factor exp(-c*d))
-    Notes:
-      - Following common UOWC practice of using an effective c for first-cut LOS. 
-      - Populate from Jerlov types / literature for your chosen λ (e.g., 450–550 nm).
-    """
-    a: float
-    b: float
-    name: Optional[str] = None
+class WaterType:
+    name: str
+    alpha_m1: float
+    beta_m1: float
+    c_m1: float
 
-    @property
-    def c(self) -> float:
-        return self.a + self.b
-
-
-# --- Quick presets (illustrative placeholders) ---
-# Replace with values at your chosen wavelength from literature tables.
-# Zayed & Shokair vary water type (pure/coastal/harbor) and analyze impact on link; 
-# set these from their tables/plots when you pin λ. [Scientific Reports, 2025]
-PURE_SEA = WaterMedium(a=0.035, b=0.025, name="Pure Sea (example)")
-CLEAR_COASTAL = WaterMedium(a=0.06, b=0.08, name="Clear Coastal (example)")
-TURBID_HARBOR = WaterMedium(a=0.19, b=0.50, name="Turbid Harbor (example)")
+    @staticmethod
+    def pure_sea_520nm():
+        return WaterType("Pure Sea (520 nm)", alpha_m1=0.04418, beta_m1=0.0009092, c_m1=0.0450892)
+    @staticmethod
+    def clear_ocean_520nm():
+        return WaterType("Clear Ocean (520 nm)", alpha_m1=0.08642, beta_m1=0.01226, c_m1=0.09868)
+    @staticmethod
+    def coastal_ocean_520nm():
+        return WaterType("Coastal Ocean (520 nm)", alpha_m1=0.2179, beta_m1=0.09966, c_m1=0.31756)
+    @staticmethod
+    def turbid_harbor_520nm():
+        return WaterType("Turbid Harbor (520 nm)", alpha_m1=1.112, beta_m1=0.5266, c_m1=1.6386)
+    @staticmethod
+    def clear_ocean_520nm_as_default():
+        return WaterType.clear_ocean_520nm()
