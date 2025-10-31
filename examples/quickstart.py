@@ -1,23 +1,47 @@
-# examples/quickstart.py
-from UOWC.media import PURE_SEA, CLEAR_COASTAL, TURBID_HARBOR
-from UOWC.link import Transmitter, Receiver, Channel
 import numpy as np
+import matplotlib.pyplot as plt
+from UOWC.media import WaterType
+from UOWC.link import Link, Tx, Rx, Geometry, Turbulence
+from UOWC.modulation import ber_ook_from_snr_db
 
-# --- Define system ---
-tx = Transmitter(power_w=0.03, tx_optical_eff=0.8)        # 30 mW LED, 80% optics
-rx = Receiver(aperture_area_m2=5e-4, rx_optical_eff=0.7)  # ~25 mm dia lens => A≈4.9e-4 m^2
-ch = Channel(wavelength_nm=520.0, medium=CLEAR_COASTAL, turbulence="lognormal", sigma_ln=0.25)
+waters = [
+    WaterType.pure_sea_520nm(),
+    WaterType.clear_ocean_520nm(),
+    WaterType.coastal_ocean_520nm(),
+    WaterType.turbid_harbor_520nm(),
+]
 
-# --- Single-distance sanity check ---
-d = 2.0  # meters
-pr = ch.los_power(tx, rx, d)
-print(f"LOS received power at {d:.1f} m: {pr*1e9:.2f} nW")
+tx = Tx(Pt_w=0.1, eta_t=0.9, semi_angle_deg=60, is_laser=False)
+rx = Rx(R_A_per_W=0.2, A_pd_m2=1e-6, eta_r=0.9, T=300, R_load=50)
+turb = Turbulence.model('lognormal', scint_index=0.1)
+distances = np.linspace(1, 20, 100)
 
-# --- Monte-Carlo with turbulence ---
-samples = ch.received_power_samples(tx, rx, d, n=20000)
-print(f"Turbulent mean: {samples.mean()*1e9:.2f} nW, scintillation (σ/I): {samples.std()/samples.mean():.3f}")
+plt.figure()
+for w in waters:
+    snr = []
+    for d in distances:
+        geom = Geometry(distance_m=float(d), theta_tx_deg=30, phi_incident_deg=15,
+                        fov_deg=30, G_tx_optics=1.0, n_concentrator=1.5)
+        link = Link(w, tx, rx, geom, turb)
+        snr.append(link.snr_db(bandwidth_Hz=1e6, rin=None, Idark_A=1e-9))
+    plt.plot(distances, snr, label=w.name)
+plt.xlabel("Distance (m)")
+plt.ylabel("SNR (dB)")
+plt.title("LED-PS: SNR vs distance, lognormal turbulence")
+plt.legend()
+plt.show()
 
-# --- Crude SNR/BER (IM/DD AWGN placeholder) ---
-snr = ch.snr_imdd_awgn(pr_w=samples.mean(), noise_psd_a2_hz=5e-24, responsivity_a_w=0.2, bandwidth_hz=1e5)
-from UOWC.modulation import ber_ook_awgn
-print(f"SNR (linear): {snr:.2f}, BER_OOK≈ {ber_ook_awgn(snr):.3e}")
+plt.figure()
+for w in waters:
+    geom = Geometry(distance_m=10.0, theta_tx_deg=30, phi_incident_deg=15,
+                    fov_deg=30, G_tx_optics=1.0, n_concentrator=1.5)
+    link = Link(w, tx, rx, geom, turb)
+    snr_db = link.snr_db(bandwidth_Hz=1e6, rin=None, Idark_A=1e-9)
+    ber = ber_ook_from_snr_db(snr_db)
+    plt.scatter([snr_db], [ber], label=w.name)
+plt.yscale('log')
+plt.xlabel("SNR (dB)")
+plt.ylabel("BER (OOK)")
+plt.title("OOK BER at 10 m across water types")
+plt.legend()
+plt.show()
