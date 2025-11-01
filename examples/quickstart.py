@@ -22,7 +22,7 @@ rx = Rx(R_A_per_W=0.2, A_pd_m2=1e-6, eta_r=0.9, T=300, R_load=50)
 turb = Turbulence.model('lognormal', scint_index=0.1)
 
 # Sweep distance and compute SNR for each water type.
-distances = np.linspace(1, 20, 100)
+distances = np.linspace(1, 5)
 plt.figure()
 for w in waters:
     snr = []
