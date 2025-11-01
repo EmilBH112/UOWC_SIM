@@ -68,7 +68,7 @@ for name, a, b, c in rows:
 
 # Write Markdown table to results/range_tables.md
 os.makedirs("results", exist_ok=True)
-with open("results/range_tables.md", "w") as f:
+with open("results/range_tables.md", "w", encoding="utf-8") as f:
     f.write("\n".join(md))
 
 print("Wrote results/range_tables.md")
