@@ -66,8 +66,7 @@ md = ["| Water Type | Ps≥−53.4 dBm (m) | BER≤1e−5 (m) | SNR≥50 dB (m) 
 for name, a, b, c in rows:
     md.append(f"| {name} | {a:.1f} | {b:.1f} | {c:.1f} |")
 
-# Write Markdown table to results/range_tables.md
-os.makedirs("results", exist_ok=True)
+# Write Markdown table to results/range_tables.md (force UTF-8 for ≥, −)
 with open("results/range_tables.md", "w", encoding="utf-8") as f:
     f.write("\n".join(md))
 
