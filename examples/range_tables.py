@@ -20,7 +20,7 @@ waters = [
     WaterType.coastal_ocean_520nm(),
     WaterType.turbid_harbor_520nm(),
 ]
-BW = cfg["bandwidth_Hz"][email protected]
+BW = cfg["bandwidth_Hz"]
 Idark = cfg["receiver"]["Idark_A"]; rin = cfg["receiver"]["rin"]
 Pbg = cfg["receiver"]["Pbg_W"]; M = cfg["receiver"]["apd_M"]; F = cfg["receiver"]["apd_F_excess"]
 
