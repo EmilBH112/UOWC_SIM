@@ -1,0 +1,33 @@
+wavelength_nm: 520
+bandwidth_Hz: 1000000
+receiver:
+  R_A_per_W: 0.20
+  A_pd_m2: 1.0e-6
+  eta_r: 0.90
+  T_K: 300.0
+  R_load_ohm: 50.0
+  FOV_deg: 30.0
+  n_concentrator: 1.5
+  Idark_A: 1.0e-9
+  rin: null
+  Pbg_W: 0.0
+  apd_M: 1.0
+  apd_F_excess: 1.0
+transmitter:
+  Pt_W: 0.10
+  eta_t: 0.90
+  led_semi_angle_deg: 60
+  is_laser: false
+  laser_div_deg: 9.0
+geometry:
+  theta_tx_deg: 30.0
+  phi_incident_deg: 15.0
+  G_tx_optics: 1.0
+sweep:
+  d_min_m: 1.0
+  d_max_m: 20.0
+  d_points: 100
+thresholds:
+  rx_sensitivity_dBm: -53.4
+  ber_target: 1.0e-5
+  snr_target_dB: 50.0
